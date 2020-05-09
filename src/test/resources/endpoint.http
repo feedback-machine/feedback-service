@@ -1,0 +1,16 @@
+#Health check
+GET http://localhost:8080/actuator/
+###
+
+#Create feedback
+POST http://localhost:8080/events/feedback
+Content-Type: application/json
+
+{ "event": "test event 3",	"comment": "test comment 3" }
+
+###
+
+#Get feedback
+GET http://localhost:8080/events/feedback
+
+###
