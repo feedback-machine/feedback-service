@@ -20,6 +20,16 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
     {{- end }}
+      initContainers:
+        - name: proxy-init
+          image: openpolicyagent/proxy_init:v2
+          args: ["-p", "8000", "-u", "1111"]
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+            runAsNonRoot: false
+            runAsUser: 0
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -38,6 +48,41 @@ spec:
               port: http
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+        - name: envoy
+          image: envoyproxy/envoy:v1.10.0
+          securityContext:
+            runAsUser: 1111
+          volumeMounts:
+            - readOnly: true
+              mountPath: /config
+              name: proxy-config
+          args:
+            - "envoy"
+            - "--config-path"
+            - "/config/envoy.yaml"
+        - name: opa
+          image: openpolicyagent/opa:0.12.1-istio-13
+          securityContext:
+            runAsUser: 1111
+          volumeMounts:
+            - readOnly: true
+              mountPath: /policies
+              name: app-policy
+          args:
+            - "--plugin-dir=/app"
+            - "run"
+            - "--server"
+            - "--set=plugins.envoy_ext_authz_grpc.addr=:9191"
+            - "--set=plugins.envoy_ext_authz_grpc.query=data.system.main"
+            - "--ignore=.*"
+            - "/policies"
+      volumes:
+        - name: app-policy
+          configMap:
+            name: app-policy
+        - name: proxy-config
+          configMap:
+            name: proxy-config
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
